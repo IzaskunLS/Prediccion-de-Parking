@@ -1,0 +1,188 @@
+---
+title: "Tratamiento de datos"
+author: "Izaskun Lopez-Samaniego"
+date: "9 de julio de 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require("knitr")
+opts_knit$set(root.dir="./")
+
+```
+
+## Preparación del entorno
+
+
+```{r entorno}
+library(data.table)
+library(caret)
+
+ruta <-'C:/Users/izask/Modelo Parking/Modelo Parkings/src'
+setwd(ruta)
+
+source('./R_funciones.R')
+
+
+t.parkings <- as.data.table(read.csv('../dat/datos_parkings.csv',
+                       sep = ';', dec = ',',header = TRUE))
+t.parkings.analizar <- t.parkings[, c('Id_parking',
+                                  'monthly.ingresos.log',
+                                  'Max_height.log',
+                                  'Stock',
+                                  'num.meses',
+                                  'reservas.medias.mes.mas.de.7.días',
+                                  'n_sitios.hospedaje',
+                                  'n_sitios.hosteleria',
+                              'reservas.medias.mes.entre.4.y.7.días',
+                                    'reservas.medias.mes.7.horas.o.menos',
+                                    'reservas.medias.mes.3.días.o.menos',
+                                    'reservas.medias.mes.entre.8.y.12.horas',
+                                    'reservas.medias.mes.mas.de.12.horas',
+                                    'Feature_twenty_four_hours',
+                                    'parking.500m',
+                                    'parking.1000m',
+                                    'Feature_elevator',
+                                    'Feature_sgv',
+                                    'n_sitios.comercio',
+                                    'n_sitios.financiero',
+                                    'n_sitios.aeropuerto',
+                                    'Feature_handicapped',
+                                    'Feature_washing',
+                                    'Spots',
+                                    'Feature_security',
+                                    'Feature_toilets')]
+t.parkings.analizar <- na.omit(t.parkings.analizar)
+
+
+```
+
+
+## Dividimos la muestra en casos de test y casos de training
+
+```{r test and testing, echo=FALSE}
+
+inTrain <- sample(1:nrow(t.parkings.analizar),
+                  nrow(t.parkings.analizar)*0.3)
+
+train.Ingresos  <- t.parkings.analizar[-inTrain,]
+test.Ingresos   <- t.parkings.analizar[inTrain,]
+
+```
+
+
+## Test Modelo Random Forest
+
+```{r RF, echo=FALSE}
+
+bootControl <- trainControl(method = "cv", number = 4)
+
+rf.fit <- train(monthly.ingresos.log~., 
+                 data= train.Ingresos[,-c('Id_parking')], 
+                method = "rf", tuneLength = 4, 
+                trControl = bootControl, scaled = F, 
+                do.trace = T, ntree = 100,
+                importance=T)
+
+
+rf.fit
+rf.fit$finalModel
+plot(rf.fit)
+```
+
+
+  - Realizamos un análisis de la importancia de las variables en cada modelo
+
+```{r RF Imp Variables, echo=FALSE}
+rfImp <- varImp(rf.fit, scale = F)
+plot(rfImp, top = 20, main = "RF Importance")
+```
+
+
+#Realizamos el test sobre los modelos
+
+  - Hemos visto como Random Forest es el modelo que mejor se ajusta utilizando todas las variables el modelo utiliza 24 arboles, se reducen los errores y Rsquared se aproxima mas a 1. Mejora con respecto a la predicción con todas las variables
+
+```{r Test de los modelos, echo=FALSE}
+
+predValues <- predict(rf.fit,
+                      , newdata = test.Ingresos[,-c('Id_parking','monthly.ingresos.log')])
+
+  
+par(mfrow=c(1,1))
+plot(predValues, 
+     test.Ingresos$monthly.ingresos.log,
+     main="Decision Tree")
+abline(0,1,lty=2,col=2)   
+
+```
+
+  Analizamos el error medio
+
+```{r Analisis del error, echo=FALSE}
+
+check.table <- test.Ingresos[, list(Id_parking,
+                                 realValues=monthly.ingresos.log)]
+check.table$predValues <- as.data.table(predValues) 
+
+check.table <- check.table[, lapply(.SD, exp), .SDcols = 2:3, 
+                           by = Id_parking]
+check.table[, error:= realValues-predValues]
+
+hist(check.table$error,
+     breaks = 30,
+     main='errores')
+
+summary(check.table$error)
+quantile(check.table$error, c(.05, .10, .25, .50, 
+                              .75, .90, .95)) 
+t.test(check.table$error)
+
+```
+
+
+```{r Analisis del Q90, echo=FALSE}
+
+t.parkings <- as.data.table(read.csv('../dat/tabla_parkings.csv',
+                       sep = ';', dec = ',',header = TRUE))
+
+q90 <- merge(check.table[error >= 198, list(Id_parking)],
+             t.parkings,
+             by.x = 'Id_parking', by.y = 'Id_parking',
+             all.x = TRUE, all.y = FALSE)
+summary(q90)
+
+```
+
+```{r Analisis del Q05, echo=FALSE}
+
+q05 <- merge(check.table[error <= 43, list(Id_parking)],
+             t.parkings,
+             by.x = 'Id_parking', by.y = 'Id_parking',
+             all.x = TRUE, all.y = FALSE)
+summary(q05)
+
+```
+
+
+```{r Analisis del resto, echo=FALSE}
+
+q05.a.q95 <- merge(check.table[error > 43 & error < 198,
+                               list(Id_parking)],
+             t.parkings,
+             by.x = 'Id_parking', by.y = 'Id_parking',
+             all.x = TRUE, all.y = FALSE)
+summary(q05.a.q95)
+
+```
+
+#Salvamos el modelo para poder ejecutar las predicciones a futuro
+
+```{r Modelo de Ingresos Final, echo=FALSE}
+
+saveRDS(rf.fit, '../resultados/Modelo_Est_Ingresos.rds')   
+
+```
+
+

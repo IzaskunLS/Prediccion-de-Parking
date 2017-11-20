@@ -1,0 +1,141 @@
+---
+title: "Tratamiento de datos"
+author: "Izaskun Lopez-Samaniego"
+date: "9 de julio de 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require("knitr")
+opts_knit$set(root.dir="./")
+
+```
+
+## Preparación del entorno
+
+
+```{r entorno}
+library(data.table)
+library(caret)
+
+ruta <-'C:/Users/izask/Modelo Parking/Modelo Parkings/src'
+setwd(ruta)
+
+source('./R_funciones.R')
+
+t.parkings <- as.data.table(read.csv('../dat/tabla_parkings.csv',
+                       sep = ';', dec = ',',header = TRUE))
+t.parkings<-t.parkings[,-c('monthly.reservas', 'meses_activo',
+                           'Ztl', 'n_sitios.camping')]
+```
+
+
+## Analisis descriptivo de las variables
+
+```{r descriptivo, echo=TRUE}
+summary(t.parkings)
+
+```
+    
+    1. Variables relacionadadas con la reserva:
+          - Facturación: 
+            # El 25% de los parkings tienen una facturación inferior a 60
+            # Si la facturacion es superior a 254 
+            # Realizaremos un logaritmo para normalizar la variable.
+
+          - Facturación por plaza en stock:
+        
+            # Utilizaremos el logaritmo de esta variable para el modelo.
+
+```{r descriptivo reservas, echo=TRUE}
+t.parkings[, monthly.ing.plaza:=monthly.ingresos/Stock]
+par(mfrow=c(2,3))
+hist(t.parkings[monthly.ingresos<=60,]$monthly.ingresos, main='facturacion media mensual')
+hist(t.parkings[monthly.ingresos>60 & monthly.ingresos<=274,]$monthly.ingresos, main='facturacion media mensual')
+hist(t.parkings[monthly.ingresos>274,]$monthly.ingresos, main='facturacion media mensual')
+hist(t.parkings$monthly.ing.plaza, main='facturacion media mensual')
+
+#hist(t.parkings$Mean.Promoter, main='NPS medio')
+
+```
+
+    2. Variables relacionadadas con las caracteristicas del parking:
+          - Altura máxima: 
+            # Sigue una distribución logaritmica, mucha frecuencia en las alturas mas bajas y un rápido descenso posterior
+          - El resto de las variables las estandarizamos y centramos.
+          
+```{r descriptivo caracteristicas parking, echo=TRUE}
+par(mfrow=c(3,1))
+hist(t.parkings$Max_height, main='Altura máxima vehiculos')
+hist(t.parkings$Spots, main='Spots')
+hist(t.parkings$num.meses, main = 'Meses Facturando')
+```
+
+
+#Correlacion
+
+Analizamos la correlacion entre variables:
+    - n_sitios.intercambiador esta correlada con la estacion de autobus
+
+```{r Correlacion, echo=TRUE}
+
+descr <- t.parkings[,-c("Id_parking", "n_sitios.camping",
+                        "monthly.ingresos", "monthly.ing.plaza")]
+descrCorr <- cor(descr)
+descrCorr[is.na(descrCorr)] <-0
+highCorr  <- findCorrelation(descrCorr, 0.9)
+col.names.corr <- colnames(descrCorr)[highCorr]
+col.names.corr
+```
+
+## Transformación de las variables
+
+    #Transformamos con un logaritmo los ingresos mensuales y altura del parking
+
+```{r trasformar logaritmos, echo=TRUE}
+t.parkings.log <- t.parkings[, list(Id_parking, Mean.Promoter,
+                                    monthly.ingresos.log= log(monthly.ing.plaza),
+                                    Max_height.log      = log(Max_height))]
+```
+
+    #Agrupamos el NET PROMOTER en 3 grupos:
+    
+```{r Agrupar NPS, echo=TRUE}
+t.parkings.log[Mean.Promoter <= 6, desc.NPS:='DETRACTORES']
+t.parkings.log[Mean.Promoter >= 8, desc.NPS:='PROMOTORES']
+t.parkings.log[Mean.Promoter > 6 & Mean.Promoter < 8, 
+           desc.NPS:='NEUTROS']
+```
+    
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+    #Estandarizamos y centramos el resto de variables a tratar. No se discretizan las variables no booleanas ya que nos interesa mantener el peso del tipo de localización.
+    
+```{r trasformar centrar y escalar, echo=TRUE}
+xTrans <- preProcess(t.parkings[,-c('Id_parking', 'Mean.Promoter', 
+                                    'desc.NPS',
+                                    'monthly.ingresos', 'monthly.ing.plaza',
+                                    'Max_height', 
+                                    'n_sitios.intercambiador')])
+t.parkings.tx <- predict(xTrans, t.parkings[,-c('Id_parking', 'Mean.Promoter',
+                                                'desc.NPS', 
+                                                'monthly.ingresos',
+                                                'monthly.ing.plaza',
+                                                'Max_height',
+                                                'n_sitios.intercambiador')])    
+
+```
+
+    #Unificamos las variables en una unica tabla y la descargamos para su posterior tratamiento por los diferentes modelos
+    
+    ```{r Unificar tabla, echo=TRUE}
+t.parkings.transf <- cbind(t.parkings.log[, list(Id_parking, 
+                                                 desc.NPS,
+                                                 monthly.ingresos.log,
+                                                 Max_height.log)], 
+                           t.parkings.tx)
+write.table(t.parkings.transf, '../dat/datos_parkings.csv',
+            sep = ';', dec = ',')
+
+```

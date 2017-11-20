@@ -1,0 +1,512 @@
+}
+recurrencia_mes[is.na(recurrencia_mes)] <- 0
+num.columnas <- ncol(recurrencia_mes)
+recurrencia_mes <- recurrencia_mes[ , lapply(.SD, max),
+by= .(Cliente, Marca, Pais_cliente),
+.SDcols = (col.iniciales+1):num.columnas]
+#Calculamos el número de clientes que recurren en el uso de Parclick
+num.columnas <- ncol(recurrencia_mes)
+c <- colnames(recurrencia_mes)[2:num.columnas]
+recurrencia_mes <- recurrencia_mes[ , list(N_Clientes = .N),
+by = c]
+recurrencia_salida <- data.table(mes      = character(),
+Marca    = character(),
+Pais_cliente     = character(),
+clientes = numeric(),
+cli.rec  = numeric()
+)
+i<-3
+a <- i+1
+b <- i+13
+recurrencia_mes[, rec:= rowSums(.SD), .SDcols = a:b]
+recurrencia_mes[, rec:=as.integer(rec) * as.integer(get(c[i]))]
+recurrencia_mes[rec != 0, rec:= as.integer(N_Clientes)]
+recurrencia_mes[, cli:= as.integer(get(c[i])) * as.integer(N_Clientes)]
+col_names[5+i]
+col_names
+col_names[5+i-3]
+col_names[5+i-2]
+recurrencia_mes <- f_historico[Year_canje>=2015, list(Cliente = usuario, Marca, Pais_cliente, Year_canje, Mes_canje)]
+recurrencia_mes <- merge(recurrencia_mes, f_pais,
+by.x = 'Pais_cliente', by.y = 'Codigo',
+all.x = TRUE, all.y = FALSE)
+recurrencia_mes[,Pais_cliente := Descripcion]
+recurrencia_mes <- recurrencia_mes[,-6]
+#parámetros
+col.iniciales <- 5
+year_ini <- 2017
+mes_ini  <- 5
+meses_rec <- 12
+col_names <- colnames(recurrencia_mes)
+#Calculo de los meses en que ha contratado el cliente en los últimos 24 meses
+for (i in 1:27){
+#Marcamos con un 1 la columna correspondiente al mes de canje, con los 12 meses analizados
+recurrencia_mes[Mes_canje == year_ini*100+mes_ini, mes_act := 1 ]
+colnames(recurrencia_mes)[i+col.iniciales] <- paste0("mes_", i)
+#Guardamos el mes de canje para renombrar las columnas a posteriori
+col_names[i+5] <- paste0("mes_",year_ini*100+mes_ini)
+#Control de los meses para asignar las columnas
+if(mes_ini==1){
+mes_ini <-12
+year_ini <- year_ini - 1
+} else {
+mes_ini <- mes_ini  - 1
+}
+}
+recurrencia_mes[is.na(recurrencia_mes)] <- 0
+num.columnas <- ncol(recurrencia_mes)
+recurrencia_mes <- recurrencia_mes[ , lapply(.SD, max),
+by= .(Cliente, Marca, Pais_cliente),
+.SDcols = (col.iniciales+1):num.columnas]
+#Calculamos el número de clientes que recurren en el uso de Parclick
+num.columnas <- ncol(recurrencia_mes)
+c <- colnames(recurrencia_mes)[2:num.columnas]
+recurrencia_mes <- recurrencia_mes[ , list(N_Clientes = .N),
+by = c]
+recurrencia_salida <- data.table(mes      = character(),
+Marca    = character(),
+Pais_cliente     = character(),
+clientes = numeric(),
+cli.rec  = numeric()
+)
+for (i in 3:14){
+a <- i+1
+b <- i+13
+#número de clientes que han reservado mas de 1 vez en los últimos 12 meses
+recurrencia_mes[, rec:= rowSums(.SD), .SDcols = a:b]
+recurrencia_mes[, rec:=as.integer(rec) * as.integer(get(c[i]))]
+recurrencia_mes[rec != 0, rec:= as.integer(N_Clientes)]
+#número de clientes que han reservado en el mes
+recurrencia_mes[, cli:= as.integer(get(c[i])) * as.integer(N_Clientes)]
+recurrencia_salida<- rbind(recurrencia_salida,
+recurrencia_mes[, list(mes     = col_names[5+i-2],
+Marca   = Marca,
+Pais_cliente    = Pais_cliente,
+clientes = cli,
+cli.rec  = rec)])
+}
+recurrencia_salida <- recurrencia_salida[, lapply(.SD, sum), by= .(mes, Marca, Pais_cliente), .SDcols = 4:5]
+recurrencia_salida[, rec.por := cli.rec/clientes]
+facturacion_mes <- f_historico[Year_canje>=2015,
+list(Facturacion = sum(Total_Ingreso)),
+by=.(Mes_canje, Marca, Pais_cliente)]
+facturacion_mes[, Mes_canje:=paste0('mes_', Mes_canje)]
+LTV <- merge(recurrencia_salida, facturacion_mes,
+by.x = c('mes', 'Marca', 'Pais'),  by.y = c('Mes_canje', 'Marca', 'Pais_cliente'),
+all.x = FALSE, all.y = FALSE)
+LTV <- LTV[, ARPU:= Facturacion/clientes]
+LTV <- LTV[, LTV := ARPU*(1/(1-rec.por))]
+LTV <- merge(recurrencia_salida, facturacion_mes,
+by.x = c('mes', 'Marca', 'Pais_cliente'),  by.y = c('Mes_canje', 'Marca', 'Pais_cliente'),
+all.x = FALSE, all.y = FALSE)
+LTV <- LTV[, ARPU:= Facturacion/clientes]
+LTV <- LTV[, LTV := ARPU*(1/(1-rec.por))]
+View(LTV)
+LTV[mes='mes_201705']
+LTV[mes=='mes_201705']
+recurrencia_mes <- f_historico[Year_canje>=2015, list(Cliente = usuario, Marca, Pais_cliente, Year_canje, Mes_canje)]
+recurrencia_mes <- merge(recurrencia_mes, f_pais,
+by.x = 'Pais_cliente', by.y = 'Codigo',
+all.x = TRUE, all.y = FALSE)
+recurrencia_mes[,Pais_cliente := Descripcion]
+recurrencia_mes <- recurrencia_mes[,-6]
+#parámetros
+col.iniciales <- 5
+year_ini <- 2017
+mes_ini  <- 5
+meses_rec <- 12
+col_names <- colnames(recurrencia_mes)
+recurrencia_mes <- f_historico[Year_canje>=2015, list(Cliente = usuario, Marca, Pais_cliente, Year_canje, Mes_canje)]
+recurrencia_mes <- merge(recurrencia_mes, f_pais,
+by.x = 'Pais_cliente', by.y = 'Codigo',
+all.x = TRUE, all.y = FALSE)
+recurrencia_mes[,Pais_cliente := Descripcion]
+recurrencia_mes <- recurrencia_mes[,-6]
+#parámetros
+col.iniciales <- 5
+year_ini <- 2017
+mes_ini  <- 5
+meses_rec <- 12
+col_names <- colnames(recurrencia_mes)
+col_names <- colnames(recurrencia_mes)
+colnames(recurrencia_mes)
+recurrencia_mes[Mes_canje=='201705', list(clientes=.N)]
+#Calculo de los meses en que ha contratado el cliente en los últimos 24 meses
+for (i in 1:27){
+#Marcamos con un 1 la columna correspondiente al mes de canje, con los 12 meses analizados
+recurrencia_mes[Mes_canje == year_ini*100+mes_ini, mes_act := 1 ]
+colnames(recurrencia_mes)[i+col.iniciales] <- paste0("mes_", i)
+#Guardamos el mes de canje para renombrar las columnas a posteriori
+col_names[i+5] <- paste0("mes_",year_ini*100+mes_ini)
+#Control de los meses para asignar las columnas
+if(mes_ini==1){
+mes_ini <-12
+year_ini <- year_ini - 1
+} else {
+mes_ini <- mes_ini  - 1
+}
+}
+recurrencia_mes[is.na(recurrencia_mes)] <- 0
+num.columnas <- ncol(recurrencia_mes)
+recurrencia_mes <- recurrencia_mes[ , lapply(.SD, max),
+by= .(Cliente, Marca, Pais_cliente),
+.SDcols = (col.iniciales+1):num.columnas]
+#Calculamos el número de clientes que recurren en el uso de Parclick
+num.columnas <- ncol(recurrencia_mes)
+c <- colnames(recurrencia_mes)[2:num.columnas]
+recurrencia_mes <- recurrencia_mes[ , list(N_Clientes = .N),
+by = c]
+recurrencia_salida <- data.table(mes      = character(),
+Marca    = character(),
+Pais_cliente     = character(),
+clientes = numeric(),
+cli.rec  = numeric()
+)
+for (i in 3:14){
+a <- i+1
+b <- i+13
+#número de clientes que han reservado mas de 1 vez en los últimos 12 meses
+recurrencia_mes[, rec:= rowSums(.SD), .SDcols = a:b]
+recurrencia_mes[, rec:=as.integer(rec) * as.integer(get(c[i]))]
+recurrencia_mes[rec != 0, rec:= as.integer(N_Clientes)]
+#número de clientes que han reservado en el mes
+recurrencia_mes[, cli:= as.integer(get(c[i])) * as.integer(N_Clientes)]
+recurrencia_salida<- rbind(recurrencia_salida,
+recurrencia_mes[, list(mes     = col_names[5+i-2],
+Marca   = Marca,
+Pais_cliente    = Pais_cliente,
+clientes = cli,
+cli.rec  = rec)])
+}
+recurrencia_salida <- recurrencia_salida[, lapply(.SD, sum), by= .(mes, Marca, Pais_cliente), .SDcols = 4:5]
+recurrencia_salida[, rec.por := cli.rec/clientes]
+recurrencia_salida[mes=='201705']
+recurrencia_salida[mes=='mes_201705']
+recurrencia_salida[mes=='mes_201705', list(clientes=sum(clientes))]
+facturacion_mes <- f_historico[Year_canje>=2015,
+list(Facturacion = sum(Total_Ingreso)),
+by=.(Mes_canje, Marca, Pais_cliente)]
+facturacion_mes[, Mes_canje:=paste0('mes_', Mes_canje)]
+LTV <- merge(recurrencia_salida, facturacion_mes,
+by.x = c('mes', 'Marca', 'Pais_cliente'),  by.y = c('Mes_canje', 'Marca', 'Pais_cliente'),
+all.x = FALSE, all.y = FALSE)
+LTV[, Mes_canje:=paste0('mes_', Mes_canje)]
+LTV[mes=='mes_201705', list(clientes=sum(clientes))]
+recurrencia_salida[mes=='mes_201705', list(clientes=sum(clientes))]
+facturacion_mes[Mes_canje=='mes_201705', sum(Total_Ingreso), by=.(Marca)]
+facturacion_mes[Mes_canje=='mes_201705', list(a=sum(Total_Ingreso)), by=.(Marca)]
+facturacion_mes[Mes_canje=='mes_201705', sum(Facturacion), by=.(Marca)]
+recurrencia_salida[mes=='mes_201705', list(clientes=sum(clientes)), by=.(Marca)]
+facturacion_mes[,Pais_cliente := Descripcion]
+facturacion_mes <- f_historico[Year_canje>=2015,
+list(Facturacion = sum(Total_Ingreso)),
+by=.(Mes_canje, Marca, Pais_cliente)]
+facturacion_mes <- merge(f_historico, f_pais,
+by.x = 'Pais_cliente', by.y = 'Codigo',
+all.x = TRUE, all.y = FALSE)
+facturacion_mes[,Pais_cliente := Descripcion]
+colnames(facturacion_mes)
+facturacion_mes <- f_historico[Year_canje>=2015,
+list(Facturacion = sum(Total_Ingreso)),
+by=.(Mes_canje, Marca, Pais_cliente)]
+facturacion_mes <- merge(facturacion_mes, f_pais,
+by.x = 'Pais_cliente', by.y = 'Codigo',
+all.x = TRUE, all.y = FALSE)
+facturacion_mes[,Pais_cliente := Descripcion]
+colnames(facturacion_mes)
+facturacion_mes <- facturacion_mes[,-5]
+facturacion_mes[, Mes_canje:=paste0('mes_', Mes_canje)]
+LTV <- merge(recurrencia_salida, facturacion_mes,
+by.x = c('mes', 'Marca', 'Pais_cliente'),  by.y = c('Mes_canje', 'Marca', 'Pais_cliente'),
+all.x = FALSE, all.y = FALSE)
+LTV <- LTV[, ARPU:= Facturacion/clientes]
+LTV <- LTV[, LTV := ARPU*(1/(1-rec.por))]
+View(LTV)
+LTV [mes=='mes_201705', list(a=sum(clientes))]
+recurrencia_salida [mes=='mes_201705', list(a=sum(clientes))]
+facturacion_mes <- f_historico[Year_canje>=2015,
+list(Facturacion = sum(Total_Ingreso)),
+by=.(Mes_canje, Marca, Pais_cliente)]
+nrow(facturacion_mes)
+facturacion_mes <- merge(facturacion_mes, f_pais,
+by.x = 'Pais_cliente', by.y = 'Codigo',
+all.x = TRUE, all.y = FALSE)
+nrow(facturacion_mes)
+facturacion_mes[, list(contar=.N), by=.(Pais_cliente)]
+View(facturacion_mes[, list(contar=.N), by=.(Pais_cliente)])
+facturacion_mes <- f_historico[Year_canje>=2015,
+list(Facturacion = sum(Total_Ingreso)),
+by=.(Mes_canje, Marca, Pais_cliente)]
+col_names(facturacion_mes)
+colnames(facturacion_mes)
+facturacion_mes <- merge(facturacion_mes, f_pais,
+by.x = 'Pais_cliente', by.y = 'Codigo',
+all.x = TRUE, all.y = FALSE)
+colnames(facturacion_mes)
+facturacion_mes <- f_historico[Year_canje>=2015,
+list(Facturacion = sum(Total_Ingreso)),
+by=.(Mes_canje, Marca, Pais_cliente)]
+nrow(facturacion_mes)
+facturacion_mes <- merge(facturacion_mes, f_pais,
+by.x = 'Pais_cliente', by.y = 'Codigo',
+all.x = TRUE, all.y = FALSE)
+nrow(facturacion_mes)
+facturacion_mes[,Pais_cliente := Descripcion]
+facturacion_mes <- facturacion_mes[,-5]
+facturacion_mes[, Mes_canje:=paste0('mes_', Mes_canje)]
+colnames(facturacion_mes)
+facturacion_mes <- merge(f_historico[Year_canje>=2015], f_pais,
+by.x = 'Pais_cliente', by.y = 'Codigo',
+all.x = TRUE, all.y = FALSE)
+facturacion_mes <- facturacion_mes[Year_canje>=2015,
+list(Facturacion = sum(Total_Ingreso)),
+by=.(Mes_canje, Marca, Pais_cliente)]
+colnames(facturacion_mes)
+nrow(facturacion_mes)
+facturacion_mes <- merge(f_historico[Year_canje>=2015], f_pais,
+by.x = 'Pais_cliente', by.y = 'Codigo',
+all.x = TRUE, all.y = FALSE)
+facturacion_mes[,Pais_cliente := Descripcion]
+facturacion_mes <- facturacion_mes[Year_canje>=2015,
+list(Facturacion = sum(Total_Ingreso)),
+by=.(Mes_canje, Marca, Pais_cliente)]
+nrow(facturacion_mes)
+facturacion_mes[,Pais_cliente := Descripcion]
+facturacion_mes <- facturacion_mes[,-5]
+facturacion_mes[, Mes_canje:=paste0('mes_', Mes_canje)]
+LTV <- merge(recurrencia_salida, facturacion_mes,
+by.x = c('mes', 'Marca', 'Pais_cliente'),  by.y = c('Mes_canje', 'Marca', 'Pais_cliente'),
+all.x = FALSE, all.y = FALSE)
+LTV <- LTV[, ARPU:= Facturacion/clientes]
+LTV <- LTV[, LTV := ARPU*(1/(1-rec.por))]
+LTV[mes=='mes_201705', list(a=sum(clientes))]
+View(LTV)
+write.table(LTV, 'D:/01 Parclick/01 Solicitudes Analisis de datos/20170201 Life Time Value/LTV.csv',
+sep = ';', dec = ',', row.names = FALSE)
+write.table(LTV, 'D:/01 Parclick/01 Solicitudes Analisis de datos/20170201 Life Time Value/LTV_pais_cliente.csv',
+sep = ';', dec = ',', row.names = FALSE)
+library(data.table)
+f_historico <- as.data.table(read.csv("D:/01 Parclick/00 Datos/historico_canjes.csv", sep =";" , dec =","))
+f_historico[,Quarter := paste0("Q_", Year_canje, Quarter)]
+ventas_ag <- f_historico[, list(N= .N), by = .(Quarter)]
+recurrencia_mes <- f_historico[Year_canje>=2015, list(Cliente = usuario, Year_canje, Mes_canje)]
+year_ini <- 2017
+mes_ini  <- 5
+mes_ini  <- 6
+meses_rec <- 12
+col_names <- colnames(recurrencia_mes)
+for (i in 1:27){
+#Marcamos con un 1 la columna correspondiente al mes de canje, con los 12 meses analizados
+recurrencia_mes[Mes_canje == year_ini*100+mes_ini, mes_act := 1 ]
+colnames(recurrencia_mes)[i+3] <- paste0("mes_", i)
+#Guardamos el mes de canje para renombrar las columnas a posteriori
+col_names[i+3] <- paste0("mes_",year_ini*100+mes_ini)
+#Control de los meses para asignar las columnas
+if(mes_ini==1){
+mes_ini <-12
+year_ini <- year_ini - 1
+} else {
+mes_ini <- mes_ini  - 1
+}
+}
+n <- ncol(recurrencia_mes)
+recurrencia_mes[is.na(recurrencia_mes)] <- 0
+recurrencia_mes <- recurrencia_mes[ , lapply(.SD, max), by= Cliente, .SDcols = 4:n]
+c <- colnames(recurrencia_mes)[2:(n-2)]
+recurrencia_mes <- recurrencia_mes[ , list(N_clientes = .N),
+by = c]
+recurrencia_salida <- data.table(mes      = character(),
+clientes = numeric(),
+cli.rec  = numeric()
+)
+for (i in 1:14){
+a <- i+1
+b <- i+13
+#número de clientes que han reservado mas de 1 vez en los últimos 12 meses
+recurrencia_mes[, rec:= rowSums(.SD), .SDcols = a:b]
+recurrencia_mes[, rec:=as.integer(rec) * as.integer(get(c[i]))]
+recurrencia_mes[rec != 0, rec:= as.integer(N_clientes)]
+#número de clientes que han reservado en el mes
+recurrencia_mes[, cli:= as.integer(get(c[i])) * as.integer(N_clientes)]
+recurrencia_salida<- rbind(recurrencia_salida,
+recurrencia_mes[, list(mes = col_names[3+i],
+clientes = cli,
+cli.rec  = rec)])
+}
+recurrencia_salida <- recurrencia_salida[, lapply(.SD, sum), by= mes, .SDcols = 2:3]
+recurrencia_salida[, rec.por := cli.rec/clientes]
+View(recurrencia_salida)
+library(data.table)
+#Preparación del entorno
+ruta <-'D:/01 Parclick/01 Solicitudes Analisis de datos/20170615 Modelizacion de Parkings/src'
+setwd(ruta)
+source('./R_funciones.R')
+#Carga de ficheros
+f_historico    <- as.data.table(read.csv("../dat/historico_canjes.csv", sep =";" , dec =","))
+f_promoter     <- as.data.table(read.csv("../dat/NPS-Abril 2017_RED.csv", sep =";" , dec =","))
+area.comercial <-as.data.table(read.csv2('../dat/parkings_zona.csv',
+sep = ';', header = TRUE))
+parkings       <-as.data.table(read.csv2('../dat/listado_parkings.csv',
+sep = ';', header = TRUE))
+parkings<-parkings[,c(1,12:13, 42, 15:31, 62, 67, 69, 41)]
+tabla <- merge(f_historico[Marca=='Parclick',list(Id_parking, Parking, Cod_Reserva, Year_canje, Mes_canje, Total_Ingreso, PRODUCTO2, aeropuerto = SUBTIPO)],
+f_promoter[,list(Ciudad.usuario, Score)],
+by.x = 'Cod_Reserva', by.y = 'Ciudad.usuario',
+all.x = TRUE, all.y = FALSE)
+tabla[,Id_parking:=as.integer(as.character(Id_parking))]
+#Calculamos el número de reservas y los ingresos totales al año para posteriormente calcular la media mensual
+tabla1 <- tabla[, list(N_reservas=.N, Ingresos =sum(Total_Ingreso)),
+by = .(Id_parking, Parking, Year_canje, Mes_canje)]
+tmp    <- tabla1[, list(monthly.reservas=mean(N_reservas, na.rm = TRUE),
+monthly.ingresos =mean(Ingresos, na.rm = TRUE),
+num.meses =.N),
+by = .(Id_parking, Parking)]
+#Calculamos el valor medio que le dan los usuarios al parking
+tabla1 <- tabla[, list(Mean.Promoter = mean(Score, na.rm = TRUE)),
+by = .(Id_parking, Parking)]
+tmp <- merge(tmp, tabla1,
+by.x = c('Id_parking', 'Parking'), by.y = c('Id_parking', 'Parking'),
+all.x = TRUE, all.y= FALSE)
+#análisis para Marcos
+tabla1 <- tabla[,list(N_reservas=.N),
+by = .(Id_parking, Parking, Year_canje, PRODUCTO2)]
+tabla1 <- reshape(tabla1[, list(Id_parking, Parking, Year_canje, PRODUCTO2, N_reservas)],
+v.names='N_reservas',idvar=c('Id_parking', 'Parking', 'Year_canje'),
+timevar="PRODUCTO2",
+direction="wide")
+tabla1[is.na(tabla1)]<-0
+write.table(tabla1, '../dat/parking_by_canjes_productos.csv')
+#Calculamos el tipo de productos que ha vendido el parking ¿asumimos que son los que tiene?
+tabla1 <- tabla[,list(N_reservas=.N),
+by = .(Id_parking, Parking, Year_canje, Mes_canje, PRODUCTO2)]
+#tabla1 <- tabla1[,list(reservas.medias.mes=mean(N_reservas)),
+tabla1 <- tabla1[,list(reservas.medias.mes=1),
+by = .(Id_parking, Parking, PRODUCTO2)]
+tabla1 <- reshape(tabla1[, list(Id_parking, Parking, PRODUCTO2, reservas.medias.mes)],
+v.names='reservas.medias.mes',idvar=c('Id_parking', 'Parking'),
+timevar="PRODUCTO2",
+direction="wide")
+tabla1[is.na(tabla1)]<-0
+tmp <- merge(tmp, tabla1,
+by.x = c('Id_parking', 'Parking'), by.y = c('Id_parking', 'Parking'),
+all.x = TRUE, all.y= TRUE)
+#calculamos la antigüedad del parking
+parkings[ ,Date_created := as.Date(Date_created,  "%m/%d/%Y")]
+parkings[ ,Last_updated := as.Date(Last_updated,  "%m/%d/%Y")]
+parkings[, meses_activo := difftime(Sys.Date(), Date_created, units = "days")/30]
+parkings[Status!='ACTIVE', meses_activo := difftime(Last_updated, Date_created, units = "days")/30]
+parkings[, meses_activo := as.integer(meses_activo)]
+parkings2<-parkings[, lapply(.SD, function(x) as.character(x)), .SDcols = c(7:21, 24)]
+parkings2<-parkings2[, lapply(.SD, function(x) replace(x, which(x=='false'),0)), .SDcols = 1:ncol(parkings2)]
+parkings2<-parkings2[, lapply(.SD, function(x) replace(x, which(x=='true') ,1)), .SDcols = 1:ncol(parkings2)]
+parkings<-cbind(parkings[,list(Id, meses_activo, Max_height, Stock, Spots), parkings2])
+tmp<-merge(tmp, parkings,
+by.x = 'Id_parking', by.y = 'Id',
+all.x = TRUE, all.y = TRUE)
+tmp <-merge(tmp, area.comercial,
+by.x = 'Id_parking', by.y = 'Id',
+all.x = TRUE, all.y = TRUE)
+tmp<-tmp[!is.na(Parking)]
+#Incluimos los tipos de aeropuerto
+tabla1 <- tabla[,list(tipo.aeropuerto= 1), by=.(Id_parking, aeropuerto)]
+tabla1 <- reshape(tabla1,
+v.names='tipo.aeropuerto',idvar=c('Id_parking'),
+timevar="aeropuerto",
+direction="wide")
+tabla1[is.na(tabla1)]<-0
+tmp <-merge(tmp, tabla1,
+by.x = 'Id_parking', by.y = 'Id_parking',
+all.x = TRUE, all.y = TRUE)
+tmp <- tmp[tipo.aeropuerto.NA == 0, n_sitios.aeropuerto:=1]
+tmp <- tmp[,-c(tipo.aeropuerto.NA)]
+tmp
+View(tmp)
+library(data.table)
+#Preparación del entorno
+ruta <-'D:/01 Parclick/01 Solicitudes Analisis de datos/20170615 Modelizacion de Parkings/src'
+setwd(ruta)
+source('./R_funciones.R')
+#Carga de ficheros
+f_historico    <- as.data.table(read.csv("../dat/historico_canjes.csv", sep =";" , dec =","))
+f_promoter     <- as.data.table(read.csv("../dat/NPS-Abril 2017_RED.csv", sep =";" , dec =","))
+area.comercial <-as.data.table(read.csv2('../dat/parkings_zona.csv',
+sep = ';', header = TRUE))
+parkings       <-as.data.table(read.csv2('../dat/listado_parkings.csv',
+sep = ';', header = TRUE))
+parkings<-parkings[,c(1,12:13, 42, 15:31, 62, 67, 69, 41)]
+tabla <- merge(f_historico[Marca=='Parclick',list(Id_parking, Parking, Cod_Reserva, Year_canje, Mes_canje, Total_Ingreso, PRODUCTO2, aeropuerto = SUBTIPO)],
+f_promoter[,list(Ciudad.usuario, Score)],
+by.x = 'Cod_Reserva', by.y = 'Ciudad.usuario',
+all.x = TRUE, all.y = FALSE)
+tabla[,Id_parking:=as.integer(as.character(Id_parking))]
+#Calculamos el número de reservas y los ingresos totales al año para posteriormente calcular la media mensual
+tabla1 <- tabla[, list(N_reservas=.N, Ingresos =sum(Total_Ingreso)),
+by = .(Id_parking, Parking, Year_canje, Mes_canje)]
+tmp    <- tabla1[, list(monthly.reservas=mean(N_reservas, na.rm = TRUE),
+monthly.ingresos =mean(Ingresos, na.rm = TRUE),
+num.meses =.N),
+by = .(Id_parking, Parking)]
+#Calculamos el valor medio que le dan los usuarios al parking
+tabla1 <- tabla[, list(Mean.Promoter = mean(Score, na.rm = TRUE)),
+by = .(Id_parking, Parking)]
+tmp <- merge(tmp, tabla1,
+by.x = c('Id_parking', 'Parking'), by.y = c('Id_parking', 'Parking'),
+all.x = TRUE, all.y= FALSE)
+#análisis para Marcos
+tabla1 <- tabla[,list(N_reservas=.N),
+by = .(Id_parking, Parking, Year_canje, PRODUCTO2)]
+tabla1 <- reshape(tabla1[, list(Id_parking, Parking, Year_canje, PRODUCTO2, N_reservas)],
+v.names='N_reservas',idvar=c('Id_parking', 'Parking', 'Year_canje'),
+timevar="PRODUCTO2",
+direction="wide")
+tabla1[is.na(tabla1)]<-0
+write.table(tabla1, '../dat/parking_by_canjes_productos.csv')
+#Calculamos el tipo de productos que ha vendido el parking ¿asumimos que son los que tiene?
+tabla1 <- tabla[,list(N_reservas=.N),
+by = .(Id_parking, Parking, Year_canje, Mes_canje, PRODUCTO2)]
+#tabla1 <- tabla1[,list(reservas.medias.mes=mean(N_reservas)),
+tabla1 <- tabla1[,list(reservas.medias.mes=1),
+by = .(Id_parking, Parking, PRODUCTO2)]
+tabla1 <- reshape(tabla1[, list(Id_parking, Parking, PRODUCTO2, reservas.medias.mes)],
+v.names='reservas.medias.mes',idvar=c('Id_parking', 'Parking'),
+timevar="PRODUCTO2",
+direction="wide")
+tabla1[is.na(tabla1)]<-0
+tmp <- merge(tmp, tabla1,
+by.x = c('Id_parking', 'Parking'), by.y = c('Id_parking', 'Parking'),
+all.x = TRUE, all.y= TRUE)
+#calculamos la antigüedad del parking
+parkings[ ,Date_created := as.Date(Date_created,  "%m/%d/%Y")]
+parkings[ ,Last_updated := as.Date(Last_updated,  "%m/%d/%Y")]
+parkings[, meses_activo := difftime(Sys.Date(), Date_created, units = "days")/30]
+parkings[Status!='ACTIVE', meses_activo := difftime(Last_updated, Date_created, units = "days")/30]
+parkings[, meses_activo := as.integer(meses_activo)]
+parkings2<-parkings[, lapply(.SD, function(x) as.character(x)), .SDcols = c(7:21, 24)]
+parkings2<-parkings2[, lapply(.SD, function(x) replace(x, which(x=='false'),0)), .SDcols = 1:ncol(parkings2)]
+parkings2<-parkings2[, lapply(.SD, function(x) replace(x, which(x=='true') ,1)), .SDcols = 1:ncol(parkings2)]
+parkings<-cbind(parkings[,list(Id, meses_activo, Max_height, Stock, Spots), parkings2])
+tmp<-merge(tmp, parkings,
+by.x = 'Id_parking', by.y = 'Id',
+all.x = TRUE, all.y = TRUE)
+tmp <-merge(tmp, area.comercial,
+by.x = 'Id_parking', by.y = 'Id',
+all.x = TRUE, all.y = TRUE)
+tmp<-tmp[!is.na(Parking)]
+#Incluimos los tipos de aeropuerto
+tabla1 <- tabla[,list(tipo.aeropuerto= 1), by=.(Id_parking, aeropuerto)]
+tabla1 <- reshape(tabla1,
+v.names='tipo.aeropuerto',idvar=c('Id_parking'),
+timevar="aeropuerto",
+direction="wide")
+tabla1[is.na(tabla1)]<-0
+tmp <-merge(tmp, tabla1,
+by.x = 'Id_parking', by.y = 'Id_parking',
+all.x = TRUE, all.y = TRUE)
+tmp <- tmp[tipo.aeropuerto.NA == 0, n_sitios.aeropuerto:=1]
+tmp1 <- tmp[,-c('tipo.aeropuerto.NA')]
+View(tmp1)
+tmp1 <- tmp[,-c('tipo.aeropuerto.NA','Parking_name')]
+View(tmp1)
+View(tmp1)
+write.table(tmp,'../dat/tabla_parkings.csv',
+sep =';', dec = ',', row.names = FALSE)

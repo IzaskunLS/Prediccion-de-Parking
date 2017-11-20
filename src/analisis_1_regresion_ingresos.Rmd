@@ -1,0 +1,153 @@
+---
+title: "Tratamiento de datos"
+author: "Izaskun Lopez-Samaniego"
+date: "9 de julio de 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require("knitr")
+opts_knit$set(root.dir="./")
+
+```
+
+## Preparación del entorno
+
+
+```{r entorno}
+library(data.table)
+library(caret)
+
+source('./R_funciones.R')
+
+t.parkings.analizar <- as.data.table(read.csv('../dat/datos_parkings.csv',
+                       sep = ';', dec = ',',header = TRUE))
+t.parkings.analizar <- t.parkings.analizar[,-c('Id_parking',
+                                               'desc.NPS')]
+t.parkings.analizar <- na.omit(t.parkings.analizar)
+```
+
+
+## Dividimos la muestra en casos de test y casos de training
+
+```{r test and testing, echo=TRUE}
+
+inTrain <- sample(1:nrow(t.parkings.analizar),
+                  nrow(t.parkings.analizar)*0.3)
+
+train.Ingresos  <- t.parkings.analizar[-inTrain,]
+test.Ingresos   <- t.parkings.analizar[inTrain,]
+
+```
+
+## Test Modelo SVM
+
+```{r SVM, echo=TRUE}
+bootControl <- trainControl(method = "cv",
+                            savePred=T)
+svm.fit <- train(monthly.ingresos.log~., 
+                 data= train.Ingresos, 
+                 method = "svmRadial", tuneLength = 3, 
+                 trControl = bootControl, scaled = F)
+
+svm.fit
+
+svm.fit$finalModel
+
+# Density plots de los diferentes folds/iteraciones
+resampleHist(svm.fit)
+
+```
+
+  - Realizamos un análisis de la importancia de las variables en cada modelo
+
+```{r SVM Imp Variables, echo=TRUE}
+svmImp <- varImp(svm.fit, scale = F)
+plot(svmImp, top = 20, main = "SVM Importance")
+```
+
+
+```{r SVM Lineal, echo=TRUE}
+bootControl <- trainControl(method = "cv",
+                            savePred=T)
+svm.fit <- train(monthly.ingresos.log~., 
+                 data= train.Ingresos, 
+                 method = "svmLinear", tuneLength = 3, 
+                 trControl = bootControl, scaled = F)
+
+svm.fit
+
+svm.fit$finalModel
+
+# Density plots de los diferentes folds/iteraciones
+resampleHist(svm.fit)
+
+```
+
+## Test Modelo Random Forest
+
+```{r RF, echo=TRUE}
+
+bootControl <- trainControl(method = "cv", number = 4)
+rf.fit <- train(monthly.ingresos.log~., 
+                 data= train.Ingresos, 
+                method = "rf", tuneLength = 4, 
+                trControl = bootControl, scaled = F, 
+                do.trace = T, ntree = 100,
+                importance=T)
+
+
+
+rf.fit
+rf.fit$finalModel
+plot(rf.fit)
+```
+
+
+  - Realizamos un análisis de la importancia de las variables en cada modelo
+
+```{r RF Imp Variables, echo=TRUE}
+rfImp <- varImp(rf.fit, scale = F)
+plot(rfImp, top = 20, main = "RF Importance")
+
+```
+
+
+## Test Modelo Redes Neuronales
+
+```{r RN, echo=TRUE}
+
+bootControl <- trainControl(method = "cv", number = 4)
+nnet.fit <- train(monthly.ingresos.log~., 
+                 data= train.Ingresos, 
+                 method = "nnet",
+                 trControl = bootControl, scaled = T)
+nnet.fit
+nnet.fit$finalModel
+plot(nnet.fit)
+```
+
+
+```{r NN Imp Variables, echo=TRUE}
+nnImp <- varImp(nnet.fit, scale = F)
+plot(nnImp, top = 20, main = "NN Importance")
+
+```
+
+
+#Realizamos el test sobre random forest
+  
+  - Hemos visto como Random Forest es el modelo que mejor se ajusta utilizando todas las variables el modelo utiliza 55 arboles, aunque el RMSE es muy alto, Rsquared se aproxima a 1.
+
+```{r Test de los modelos, echo=TRUE}
+
+predValues <- predict(rf.fit,
+                      , newdata = test.Ingresos[,-c('monthly.ingresos.log')])
+
+  
+par(mfrow=c(1,1))
+plot(predValues, test.Ingresos$monthly.ingresos.log, main="Test Random Forest")
+abline(0,1,lty=2,col=2)   
+
+```

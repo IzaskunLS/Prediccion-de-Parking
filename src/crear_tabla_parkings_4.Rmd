@@ -1,0 +1,205 @@
+---
+title: "Tratamiento de datos"
+author: "Izaskun Lopez-Samaniego"
+date: "9 de julio de 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require("knitr")
+opts_knit$set(root.dir="./")
+
+```
+
+## Preparación del entorno
+
+
+```{r entorno}
+library(data.table)
+library(caret)
+
+ruta <-'C:/Users/izask/Modelo Parking/Modelo Parkings/src'
+setwd(ruta)
+
+source('./R_funciones.R')
+
+t.parkings <- as.data.table(read.csv('../dat/tabla_parkings.csv',
+                       sep = ';', dec = ',',header = TRUE))
+t.parkings<-t.parkings[,-c('Parking', 'Mean.Promoter', 'Ztl',
+                           'parking.500m')]
+t.parkings<- na.omit(t.parkings)
+```
+
+
+## Analisis descriptivo de las variables
+
+```{r descriptivo, echo=FALSE}
+summary(t.parkings)
+
+```
+    
+    1. Variables relacionadadas con la reserva:
+          - Facturación: 
+            # El 25% de los parkings tienen una facturación inferior a 60
+            # Si la facturacion es superior a 254 
+            # Realizaremos un logaritmo para normalizar la variable.
+
+          - Promoter:
+        
+            # Distribución normal ¿o exponencial a excepción del valor 10?
+
+```{r descriptivo reservas, echo=FALSE}
+par(mfrow=c(2,3))
+hist(t.parkings[monthly.ingresos<=60,]$monthly.ingresos, main='facturacion media mensual')
+hist(t.parkings[monthly.ingresos>60 & monthly.ingresos<=274,]$monthly.ingresos, main='facturacion media mensual')
+hist(t.parkings[monthly.ingresos>274,]$monthly.ingresos, main='facturacion media mensual')
+#hist(t.parkings$Mean.Promoter, main='NPS medio')
+
+```
+
+    2. Variables relacionadadas con las caracteristicas del parking:
+          - Altura máxima: 
+
+            # Sigue una distribución logaritmica, mucha frecuencia en las alturas mas bajas y un rápido descenso posterior
+ 
+```{r descriptivo caracteristicas parking, echo=FALSE}
+par(mfrow=c(3,1))
+hist(t.parkings$Max_height, main='Altura máxima vehiculos')
+hist(t.parkings$Spots, main='Spots')
+hist(t.parkings$meses_activo, main = 'Meses Activos')
+```
+
+
+#Correlacion
+
+Analizamos la correlacion entre variables:
+    - n_sitios.intercambiador esta correlada con la estacion de autobus
+
+```{r Correlacion, echo=FALSE}
+
+descr <- t.parkings[,-c("Id_parking",
+                        "monthly.reservas",
+                        "monthly.ingresos")]
+descrCorr <- cor(descr)
+descrCorr[is.na(descrCorr)] <-0
+highCorr  <- findCorrelation(descrCorr, 0.9)
+col.names.corr <- colnames(descrCorr)[highCorr]
+
+```
+
+## Transformación de las variables
+
+    #Transformamos con un logaritmo los ingresos mensuales y altura del parking
+
+    ```{r trasformar logaritmos, echo=FALSE}
+t.parkings.log <- t.parkings[, list(Id_parking,
+                                    monthly.ingresos.log= log(monthly.ingresos),
+                                    Max_height.log      = log(Max_height))]
+```
+    
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+    #Estandarizamos y centramos el resto de variables a tratar
+    ```{r trasformar centrar y escalar, echo=FALSE}
+xTrans <- preProcess(t.parkings[,-c('Id_parking', 
+                                    'monthly.ingresos',
+                                    'Max_height', 
+                                    'n_sitios.intercambiador')])
+t.parkings.tx <- predict(xTrans, t.parkings[,-c('Id_parking', 
+                                           'monthly.ingresos',
+                                           'Max_height',
+                                           'n_sitios.intercambiador')])    
+
+```
+
+    #Unificamos las variables en una unica tabla
+    ```{r Unificar tabla, echo=FALSE}
+t.parkings.var.predecir <- t.parkings.log[, list(Id_parking,
+                                                 monthly.ingresos.log)]
+t.parkings.transf <- cbind(t.parkings.log[, c('Max_height.log')], 
+                           t.parkings.tx) 
+
+```
+
+
+## Dividimosla muestra en casos de test y casos de training
+
+```{r test and testing, echo=FALSE}
+
+t.parkings.analizar <- cbind(t.parkings.var.predecir[,list(monthly.ingresos.log)],
+                             t.parkings.transf)
+inTrain <- sample(1:nrow(t.parkings.analizar),
+                  nrow(t.parkings.analizar)*0.3)
+
+train.Ingresos  <- t.parkings.analizar[-inTrain,]
+test.Ingresos   <- t.parkings.analizar[inTrain,]
+
+```
+
+## Test Modelo SVM
+
+```{r SVM, echo=FALSE}
+bootControl <- trainControl(method = "cv",
+                            savePred=T)
+svm.fit <- train(monthly.ingresos.log~., 
+                 data= train.Ingresos, 
+                 method = "svmRadial", tuneLength = 3, 
+                 trControl = bootControl, scaled = F)
+
+svm.fit
+
+svm.fit$finalModel
+
+# Density plots de los diferentes folds/iteraciones
+resampleHist(svm.fit)
+
+```
+
+```{r SVM Lineal, echo=FALSE}
+bootControl <- trainControl(method = "cv",
+                            savePred=T)
+svm.fit <- train(monthly.ingresos.log~., 
+                 data= train.Ingresos, 
+                 method = "svmLinear", tuneLength = 3, 
+                 trControl = bootControl, scaled = F)
+
+svm.fit
+
+svm.fit$finalModel
+
+# Density plots de los diferentes folds/iteraciones
+resampleHist(svm.fit)
+
+```
+
+## Test Modelo Random Forest
+
+```{r RF, echo=FALSE}
+
+bootControl <- trainControl(method = "cv", number = 4)
+rf.fit <- train(monthly.ingresos.log~., 
+                 data= train.Ingresos, 
+                method = "rf", tuneLength = 4, 
+                trControl = bootControl, scaled = F, 
+                do.trace = T, ntree = 100)
+
+
+rf.fit
+rf.fit$finalModel
+plot(rf.fit)
+```
+
+## Test Modelo Redes Neuronales
+
+```{r RN, echo=FALSE}
+
+bootControl <- trainControl(method = "cv", number = 4)
+nnet.fit <- train(monthly.ingresos.log~., 
+                 data= train.Ingresos, 
+                 method = "nnet",
+                 trControl = bootControl, scaled = T)
+nnet.fit
+nnet.fit$finalModel
+plot(nnet.fit)
+```

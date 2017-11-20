@@ -1,0 +1,192 @@
+---
+title: "Clasificacion NET PROMOTER"
+author: "Izaskun Lopez-Samaniego"
+date: "9 de julio de 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require("knitr")
+opts_knit$set(root.dir="./")
+
+```
+
+## Preparación del entorno
+
+
+```{r entorno}
+library(data.table)
+library(caret)
+
+ruta <-'C:/Users/izask/Modelo Parking/Modelo Parkings/src'
+setwd(ruta)
+
+source('./R_funciones.R')
+
+t.parkings.analizar <- as.data.table(read.csv('../dat/datos_parkings.csv',
+                       sep = ';', dec = ',',header = TRUE))
+t.parkings.analizar <- t.parkings.analizar[,-c('Id_parking',
+                                               'monthly.ingresos.log')]
+t.parkings.analizar <- na.omit(t.parkings.analizar)
+
+```
+
+#PCA
+
+Realizamos una reducción lineal de las variables con componentes principales
+
+  - Con 33 componentes recogemos el 90% de la información
+
+```{r PCA, echo=FALSE}
+parking.pca <- prcomp(t.parkings.analizar[,-c('desc.NPS')],
+                      center = FALSE,
+                      scale. = FALSE)
+parking.pca
+pr.var = parking.pca$sdev^2   #autovalores
+pve = pr.var/sum(pr.var)
+cumsum(pve[1:55])
+
+t.parkings.analizar.pca <- predict(parking.pca, 
+                                   t.parkings.analizar[,-c('desc.NPS')])
+t.parkings.analizar.pca<- cbind(t.parkings.analizar[,list(desc.NPS)],
+                                t.parkings.analizar.pca[,1:33])
+```
+
+
+## Dividimos la muestra en casos de test y casos de training
+
+```{r test and testing, echo=FALSE}
+
+inTrain <- sample(1:nrow(t.parkings.analizar.pca),
+                  nrow(t.parkings.analizar.pca)*0.3)
+
+train.NPS  <- t.parkings.analizar.pca[-inTrain,]
+test.NPS   <- t.parkings.analizar.pca[inTrain,]
+
+```
+
+
+#CLASIFICACIÓN CON ANÁLISIS DISCRIMINANTE
+
+1. LDA: Buscamos un modelo basado en relaciones lineales
+
+  - La clasificación no muestra un buen ajuste, sesgando el resultado hacia los promotores.
+
+```{r LDA, echo=FALSE}
+
+modelFit<- train(desc.NPS~., 
+                 method='lda',
+                 data=train.NPS)
+print(modelFit)
+
+confusionMatrix(test.NPS$desc.NPS, predict(modelFit, test.NPS))
+
+```
+
+
+2. QDA: Buscamos un modelo basado en relaciones no lineales (cuadraticas)
+
+  - La muestra es pequeña y el modelo no ajusta correctamente
+
+
+```{r QDA, echo=FALSE}
+#modelFit<- train(desc.NPS~., 
+#                 method='qda',
+#                 data=train.NPS )
+#print(modelFit)
+
+#confusionMatrix(test.NPS$desc.NPS, predict(modelFit, test.NPS))
+
+```
+
+
+## Test Modelo SVM
+
+```{r SVM, echo=FALSE}
+bootControl <- trainControl(method = "cv",
+                            savePred=T)
+svm.fit <- train(desc.NPS~., 
+                 data= train.NPS, 
+                 method = "svmRadial", tuneLength = 3, 
+                 trControl = bootControl, scaled = F)
+
+svm.fit
+
+svm.fit$finalModel
+
+confusionMatrix(train.NPS$desc.NPS, predict(svm.fit, train.NPS))
+confusionMatrix(test.NPS$desc.NPS, predict(svm.fit, test.NPS))
+
+```
+
+
+```{r SVM Lineal, echo=FALSE}
+bootControl <- trainControl(method = "cv",
+                            savePred=T)
+svm.fit <- train(desc.NPS ~., 
+                 data= train.NPS, 
+                 method = "svmLinear", tuneLength = 3, 
+                 trControl = bootControl, scaled = F)
+
+svm.fit
+
+svm.fit$finalModel
+
+confusionMatrix(train.NPS$desc.NPS, predict(svm.fit, train.NPS))
+confusionMatrix(test.NPS$desc.NPS, predict(svm.fit, test.NPS))
+
+
+```
+
+## Test Modelo Random Forest
+
+```{r RF, echo=FALSE}
+
+bootControl <- trainControl(method = "cv", number = 4)
+rf.fit <- train(desc.NPS ~., 
+                 data= train.NPS, 
+                method = "rf", tuneLength = 4, 
+                trControl = bootControl, scaled = F, 
+                do.trace = T, ntree = 100,
+                importance=T)
+
+rf.fit
+rf.fit$finalModel
+
+```
+
+
+  - Realizamos un análisis de la importancia de las variables en cada modelo
+
+```{r RF Imp Variables, echo=FALSE}
+rfImp <- varImp(rf.fit, scale = F)
+rfImp
+```
+
+
+## Test Modelo Redes Neuronales
+
+```{r RN, echo=FALSE}
+
+bootControl <- trainControl(method = "cv", number = 4)
+nnet.fit <- train(desc.NPS ~., 
+                 data= train.NPS, 
+                 method = "nnet",
+                 trControl = bootControl, scaled = T)
+
+nnet.fit
+nnet.fit$finalModel
+plot(nnet.fit)
+confusionMatrix(train.NPS$desc.NPS, predict(nnet.fit, train.NPS))
+confusionMatrix(test.NPS$desc.NPS, predict(nnet.fit, test.NPS))
+
+
+```
+
+
+```{r NN Imp Variables, echo=FALSE}
+nnImp <- varImp(nnet.fit, scale = F)
+nnImp
+```
+
